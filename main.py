@@ -21,7 +21,7 @@ def parse_parameters() -> argparse.Namespace:
         "--example",
         action="store_true",
         default=False,
-        help="use example data instead of definitive data",
+        help="use example data instead of given input",
     )
 
     return parser.parse_args()

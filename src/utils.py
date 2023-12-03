@@ -12,10 +12,10 @@ class AbstractPuzzleSolver(ABC):
         self.__get_puzzle_data()
 
     def __get_puzzle_data(self) -> list[str]:
-        file_suffix = "example" if self.example else "data"
+        file_suffix = "example" if self.example else "input"
         filename = f"data/day{self.day}_{file_suffix}.txt"
         with open(filename, "r") as file:
-            self.lines = [line for line in file]
+            self.lines = [line.rstrip("\n") for line in file]
 
     def solve(self) -> tuple[int, int]:
         return self._solve_first_part(), self._solve_second_part()
