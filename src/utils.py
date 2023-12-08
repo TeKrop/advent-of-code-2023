@@ -27,3 +27,12 @@ class AbstractPuzzleSolver(ABC):
     @abstractmethod
     def _solve_second_part(self) -> int:
         ...
+
+
+class Multiton(ABC):
+    _instances = {}
+
+    def __new__(cls, key):
+        if key not in cls._instances:
+            cls._instances[key] = super(Multiton, cls).__new__(cls)
+        return cls._instances[key]

@@ -15,6 +15,7 @@ CARDS_STRENGTH_MAPPING = {
     for card_type in CARDS_TYPES
 }
 
+
 class PuzzleSolver(AbstractPuzzleSolver):
     ###########################
     # DAY 7 - Common code
