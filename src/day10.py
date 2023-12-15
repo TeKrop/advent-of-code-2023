@@ -7,23 +7,109 @@ from .utils import AbstractPuzzleSolver
 
 class PuzzleSolver(AbstractPuzzleSolver):
     ###########################
+    # DAY 10 - Common Part
+    ###########################
+    pipeline: "Pipeline"
+
+    def solve(self) -> tuple[int, int]:
+        self.pipeline = Pipeline(self.lines)
+        return super().solve()
+
+    ###########################
     # DAY 10 - First Part
     ###########################
 
     def _solve_first_part(self) -> int:
-        pipeline = Pipeline(self.lines)
-        return self.__get_farthest_distance_from_animal(pipeline)
+        return self.__get_farthest_distance_from_animal()
 
-    @staticmethod
-    def __get_farthest_distance_from_animal(pipeline: "Pipeline"):
-        return round(len(pipeline.main_loop) / 2)
+    def __get_farthest_distance_from_animal(self) -> int:
+        return round(len(self.pipeline.main_loop) / 2)
 
     ###########################
     # DAY 10 - Second Part
     ###########################
 
+    # Current line number when exploring the pipeline
+    current_line: int | None = None
+
+    # Number of times we hit the loop, reset in new lines
+    nb_hits: int = 0
+
+    # Memorize the current connection we made in order to ignore
+    # continuous lines when counting. A straight line coming from north
+    # and then going back to north doesn't count as a hit
+    current_connection: "Connection" = None
+
     def _solve_second_part(self) -> int:
-        return None
+        return self.__count_tiles_inside_loop()
+
+    def __count_tiles_inside_loop(self) -> int:
+        """Count the tiles inside the loop and return it.
+
+        In order to do this, we're going to use the ray casting algorithm by
+        going from left to right, line by line. Depending on the number of
+        times we pass through the main loop, we'll know if we're inside (odd
+        number) or outside the loop (even number).
+        """
+
+        # Counter of inside tiles
+        nb_tiles_inside_loop = 0
+
+        for position, pipe in self.pipeline.pipes.items():
+            # If we're on a new line, reset state variables
+            if self.current_line != position[0]:
+                self.__reset_exploration_state(position[0])
+
+            # If the pipe is not in the main loop, check the number of
+            # hits in order to know if it's inside the loop or not
+            if pipe not in self.pipeline.main_loop:
+                # If we hit the loop an odd number of times, we're inside it.
+                # We just have to add the modulo 2 of number of hits.
+                nb_tiles_inside_loop += self.nb_hits % 2
+                continue
+
+            # We're counting the current pipe as a hit
+            self.nb_hits += 1
+
+            # Now we check if the previous pipe was connected to the current one
+            # and was in the main loop. If that's the case, this pipe doesn't
+            # count. If not, we don't have any connection.
+            previous_pipe = pipe.west_pipe
+            if (
+                previous_pipe
+                and previous_pipe in self.pipeline.main_loop
+                and previous_pipe in pipe.neighbours
+            ):
+                self.nb_hits -= 1
+            else:
+                self.last_connection = None
+
+            # If the current pipe as at least a north or south connection,
+            # we must check the last connection in order to know if we should
+            # ignore it or not
+            if pipe.connection.north or pipe.connection.south:
+                # If we didn't have a connection yet, store the current
+                if not self.last_connection:
+                    self.last_connection = pipe.connection
+                    continue
+
+                # Else, make the check, and ignore current pipe if we're
+                # going in the same direction than the previous connection
+                if (
+                    pipe.connection.north == self.last_connection.north
+                    or pipe.connection.south == self.last_connection.south
+                ):
+                    self.nb_hits -= 1
+
+                # In both ways, we don't have a connection anymore, reset
+                self.last_connection = None
+
+        return nb_tiles_inside_loop
+
+    def __reset_exploration_state(self, line_number: int) -> None:
+        self.current_line = line_number
+        self.nb_hits = 0
+        self.last_connection = None
 
 
 @dataclass
@@ -48,6 +134,9 @@ class Pipe:
         self.symbol = char
         self.is_animal = self.symbol == "S"
 
+    def __repr__(self):
+        return str(self.connection)
+
     @cached_property
     def connection(self) -> Connection | None:
         match self.symbol:
@@ -71,7 +160,10 @@ class Pipe:
                 raise ValueError("Unknown pipe type")
 
     @cached_property
-    def neighbours(self) -> Iterable["Pipe"]:
+    def neighbours(self) -> list["Pipe"]:
+        return list(self.__get_neighbours())
+
+    def __get_neighbours(self) -> Iterable["Pipe"]:
         if self.connection.north and self.north_pipe.connection.south:
             yield self.north_pipe
 
