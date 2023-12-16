@@ -1,7 +1,7 @@
 from dataclasses import dataclass, field
 from itertools import combinations, count
 
-from .utils import AbstractPuzzleSolver
+from .utils import AbstractPuzzleSolver, min_and_max
 
 EMPTY_SPACE_SYMBOL = "."
 GALAXY_SYMBOL = "#"
@@ -12,25 +12,52 @@ class PuzzleSolver(AbstractPuzzleSolver):
     # DAY 11 - Common Part
     ###########################
     universe: "Universe"
+    galaxy_pairs: list[tuple["Galaxy", "Galaxy"]]
+    expandable_lines: set[int]
+    expandable_columns: set[int]
 
-    ###########################
-    # DAY 11 - First Part
-    ###########################
-
-    def _solve_first_part(self) -> int:
-        # First, create the universe and expand it
+    def solve(self) -> tuple[int, int]:
+        # First, create the universe, but don't expand it
         self.universe = Universe(self.lines)
-        self.universe.expand()
 
-        # Create pairs of galaxies
-        galaxy_pairs = combinations(self.universe.galaxies, 2)
+        # Create pairs of galaxies now, before expansion
+        self.galaxy_pairs = list(combinations(self.universe.galaxies, 2))
 
-        # Return the sum of their shortest path length
-        return sum(
-            self.__get_shortest_path_length(galaxy_pair) for galaxy_pair in galaxy_pairs
-        )
+        # Get expandable columns and lines
+        (
+            self.expandable_lines,
+            self.expandable_columns,
+        ) = self.universe.get_expandable_lines_and_columns()
+
+        return super().solve()
 
     def __get_shortest_path_length(self, galaxy_pair: tuple["Galaxy", "Galaxy"]) -> int:
+        # First calculate the distance before expansion
+        initial_distance = self.__get_initial_distance(galaxy_pair)
+        first_galaxy, second_galaxy = galaxy_pair
+
+        # Then, calculate how much we must travel in addition because of expansion
+        # For that, retrieve the number of expanded columns and lines we have
+        # between the two galaxies
+        min_x, max_x = min_and_max(first_galaxy.pos.x, second_galaxy.pos.x)
+        nb_lines = sum(
+            1 for line_idx in self.expandable_lines if line_idx in range(min_x, max_x)
+        )
+
+        min_y, max_y = min_and_max(first_galaxy.pos.y, second_galaxy.pos.y)
+        nb_columns = sum(
+            1
+            for column_idx in self.expandable_columns
+            if column_idx in range(min_y, max_y)
+        )
+
+        # We use self.expansion_factory - 1, as we already counted the column once
+        # in the initial distance calculation
+        expansion_distance = (nb_lines + nb_columns) * (self.expansion_factor - 1)
+
+        return initial_distance + expansion_distance
+
+    def __get_initial_distance(self, galaxy_pair: tuple["Galaxy", "Galaxy"]) -> int:
         """The shortest past, by only going up/right/down/left, is just the sum of
         the absolute value of difference between coordinates.
         """
@@ -40,17 +67,40 @@ class PuzzleSolver(AbstractPuzzleSolver):
         return x_diff + y_diff
 
     ###########################
+    # DAY 11 - First Part
+    ###########################
+
+    def _solve_first_part(self) -> int:
+        # For the first part, the expansion of the universe is just
+        # doubling the empty lines and columns
+        self.expansion_factor = 2
+
+        # Return the sum of their shortest path length
+        return sum(
+            self.__get_shortest_path_length(galaxy_pair)
+            for galaxy_pair in self.galaxy_pairs
+        )
+
+    ###########################
     # DAY 11 - Second Part
     ###########################
 
     def _solve_second_part(self) -> int:
-        return None
+        # For the second part, the expansion of the universe is multiplying
+        # by 1_000_000 the empty lines and columns
+        self.expansion_factor = 1_000_000
+
+        # Return the sum of their shortest path length
+        return sum(
+            self.__get_shortest_path_length(galaxy_pair)
+            for galaxy_pair in self.galaxy_pairs
+        )
 
 
 @dataclass
 class Position:
-    x: int
-    y: int
+    x: int  # line index
+    y: int  # column index
 
 
 @dataclass
@@ -77,32 +127,7 @@ class Universe:
             if char == GALAXY_SYMBOL
         ]
 
-    def expand(self) -> None:
-        # First, retrieve the lines and columns to expand
-        lines_to_expand, columns_to_expand = self.__get_empty_columns_and_lines()
-
-        # Then, create a whole new expanded universe and replace current one
-        universe_data: list[list[str]] = []
-
-        for line_idx, line in enumerate(self.data):
-            # Construct a new universe line column per column
-            new_line: list[str] = []
-            for column_idx, char in enumerate(line):
-                new_line.append(char)
-                # If the column must be expanded, add a new one
-                if column_idx in columns_to_expand:
-                    new_line.append(EMPTY_SPACE_SYMBOL)
-
-            # Add the new line to the universe
-            universe_data.append(new_line)
-
-            # If the line must be expanded, add a new line again
-            if line_idx in lines_to_expand:
-                universe_data.append(new_line)
-
-        self.data = universe_data
-
-    def __get_empty_columns_and_lines(self) -> tuple[set[int], set[int]]:
+    def get_expandable_lines_and_columns(self) -> tuple[set[int], set[int]]:
         lines_to_expand: set[int] = set()
         columns_to_expand: set[int] = set(i for i, _ in enumerate(self.data[0]))
 

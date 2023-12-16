@@ -1,4 +1,5 @@
 from abc import ABC, abstractmethod
+from typing import Any
 
 
 class AbstractPuzzleSolver(ABC):
@@ -36,3 +37,7 @@ class Multiton(ABC):
         if key not in cls._instances:
             cls._instances[key] = super(Multiton, cls).__new__(cls)
         return cls._instances[key]
+
+
+def min_and_max(first: Any, second: Any) -> tuple[Any, Any]:
+    return min(first, second), max(first, second)
