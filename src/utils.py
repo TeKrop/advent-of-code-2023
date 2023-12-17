@@ -1,4 +1,5 @@
 from abc import ABC, abstractmethod
+from dataclasses import dataclass
 from typing import Any
 
 
@@ -37,6 +38,20 @@ class Multiton(ABC):
         if key not in cls._instances:
             cls._instances[key] = super(Multiton, cls).__new__(cls)
         return cls._instances[key]
+
+
+@dataclass
+class ObjectiveCounter:
+    objective: int
+    count: int = 1
+
+    @property
+    def is_valid(self) -> bool:
+        return self.count == self.objective
+
+    def __iadd__(self, other: int):
+        self.count += other
+        return self
 
 
 def min_and_max(first: Any, second: Any) -> tuple[Any, Any]:
