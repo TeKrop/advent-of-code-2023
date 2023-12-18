@@ -1,8 +1,8 @@
 from enum import StrEnum
-from functools import cached_property
-from itertools import product
+from functools import cache, cached_property
+from time import perf_counter
 
-from .utils import AbstractPuzzleSolver, ObjectiveCounter
+from .utils import AbstractPuzzleSolver
 
 
 class PuzzleSolver(AbstractPuzzleSolver):
@@ -12,9 +12,9 @@ class PuzzleSolver(AbstractPuzzleSolver):
 
     def _solve_first_part(self) -> int:
         return sum(
-            len(spring_row.arrangements)
+            spring_row.nb_arrangements
             for line in self.lines
-            if (spring_row := SpringRow(line))
+            if (spring_row := SpringRow(line=line))
         )
 
     ###########################
@@ -22,7 +22,11 @@ class PuzzleSolver(AbstractPuzzleSolver):
     ###########################
 
     def _solve_second_part(self) -> int:
-        return None
+        return sum(
+            spring_row.nb_arrangements
+            for line in self.lines
+            if (spring_row := SpringRow(line=line, unfold=True))
+        )
 
 
 class SpringState(StrEnum):
@@ -30,82 +34,91 @@ class SpringState(StrEnum):
     DAMAGED = "#"
     UNKNOWN = "?"
 
+    def __repr__(self):
+        return self.value
+
 
 class SpringRow:
-    states: list[SpringState]
-    damaged_groups_sizes: list[int]
+    states: tuple[SpringState]
+    damaged_groups_sizes: tuple[int]
 
-    def __init__(self, line: str):
+    def __init__(self, line: str, unfold: bool = False):
         states_data, sizes_data = line.split()
-        self.states = [SpringState(state) for state in states_data]
-        self.damaged_groups_sizes = [int(size) for size in sizes_data.split(",")]
+
+        # Part 2, we unfold the spring
+        if unfold:
+            states_data = "?".join([states_data] * 5)
+            sizes_data = ",".join([sizes_data] * 5)
+
+        # In order for the algorithm to process the end of groups correctly if
+        # we have a damaged spring at the end, we add an additional dot at the end
+        self.states = tuple(
+            [SpringState(state) for state in states_data] + [SpringState.OPERATIONAL]
+        )
+        self.damaged_groups_sizes = tuple(int(size) for size in sizes_data.split(","))
 
     def __repr__(self):
         return "".join(self.states)
 
     @cached_property
-    def arrangements(self) -> list[list[SpringState]]:
-        return [
-            state for state in self.possible_states if self.__is_valid_state_row(state)
-        ]
+    def nb_arrangements(self) -> int:
+        return self.__compute_arrangements(
+            states=self.states, groups_sizes=self.damaged_groups_sizes
+        )
 
-    @cached_property
-    def possible_states(self) -> list[list[SpringState]]:
-        # First, assemble possible states for each position
-        possible_states = [
+    @cache
+    def __compute_arrangements(
+        self,
+        states: tuple[SpringState],
+        groups_sizes: tuple[int],
+        current_counter: int = 0,
+    ) -> int:
+        # Stop condition of recursive function, verify that we don't have any
+        # group to search, and we're not in the middle of a group
+        if not states:
+            return not groups_sizes and not current_counter
+
+        # Initialize the number of arrangements
+        nb_arrangements = 0
+
+        # In an iteration, just check the current
+        # state and recursively process the others
+        next_state = states[0]
+        possible_states = (
             [SpringState.DAMAGED, SpringState.OPERATIONAL]
-            if state == SpringState.UNKNOWN
-            else [state]
-            for state in self.states
-        ]
-        # Then, constitute a list by using the product method from itertools
-        return [states for states in product(*possible_states)]
+            if next_state == SpringState.UNKNOWN
+            else [next_state]
+        )
 
-    def __is_valid_state_row(self, states_row: list[SpringState]) -> bool:
-        # We'll keep track of the current damaged group we're exploring
-        counter: ObjectiveCounter = None
-        groups_sizes = iter(self.damaged_groups_sizes)
-
-        for state in states_row:
+        # Loop over possible states
+        for state in possible_states:
             match state:
-                # If the current spring is damaged, rize the count
+                # If this is a damaged spring, we're continuing
+                # to fill in the current group
                 case SpringState.DAMAGED:
-                    # If this is the first of the group, init
-                    if not counter:
-                        try:
-                            counter = ObjectiveCounter(objective=next(groups_sizes))
-                        except StopIteration:
-                            # If we don't have more group on the list, invalid
-                            return False
-                    else:
-                        # Else, rise the count
-                        counter += 1
+                    nb_arrangements += self.__compute_arrangements(
+                        states[1:], groups_sizes, current_counter + 1
+                    )
 
+                # Else, this is an operational spring. We may be at the
+                # end of an existing group, we have some checks
                 case SpringState.OPERATIONAL:
-                    # If we had a group, check its size. If it's not
-                    # the same as counted, if not a valid group
-                    if counter and not counter.is_valid:
-                        return False
-                    counter = None
+                    # If the current_counter is not empty, it means we're in a group
+                    if current_counter:
+                        # We must check if it matches the next group size. If
+                        # that's the case, then we ended one group, and go next
+                        if groups_sizes:
+                            next_group_size = groups_sizes[0]
+                            if current_counter == next_group_size:
+                                nb_arrangements += self.__compute_arrangements(
+                                    states[1:], groups_sizes[1:]
+                                )
+                        # Else, it's the same case, we're still
+                        # in the middle of an ongoing group
+                    else:
+                        # Else, same arrangement, continue with next
+                        nb_arrangements += self.__compute_arrangements(
+                            states[1:], groups_sizes
+                        )
 
-                # If we have an unknown state, it's not valid
-                case SpringState.UNKNOWN:
-                    return False
-
-        # After looping over all the springs, check if we still had a
-        # group and if it's valid if it's the case
-        if counter and not counter.is_valid:
-            return False
-
-        # Now, check if we still had groups to check
-        try:
-            next(groups_sizes)
-        except StopIteration:
-            # We had the exception, meaning the iteration is complete
-            pass
-        else:
-            # Still at least one group, state is invalid
-            return False
-
-        # If we passed all the checks, this is good
-        return True
+        return nb_arrangements
