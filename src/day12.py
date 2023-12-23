@@ -1,6 +1,5 @@
 from enum import StrEnum
 from functools import cache, cached_property
-from time import perf_counter
 
 from .utils import AbstractPuzzleSolver
 
