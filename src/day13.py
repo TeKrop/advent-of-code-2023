@@ -1,3 +1,4 @@
+from copy import deepcopy
 from dataclasses import dataclass
 from enum import StrEnum
 from functools import cached_property
@@ -30,23 +31,64 @@ class PuzzleSolver(AbstractPuzzleSolver):
         if cells:
             yield Pattern(cells=tuple(cells))
 
+    def __patterns_sum(self, patterns: list["Pattern"]) -> int:
+        return sum(pattern.reflections_sum for pattern in patterns)
+
     ###########################
     # DAY 13 - First Part
     ###########################
 
     def _solve_first_part(self) -> int:
-        return sum(
-            pattern.nb_columns_before_reflection
-            + (100 * pattern.nb_rows_above_reflection)
-            for pattern in self.patterns
-        )
+        return self.__patterns_sum(self.patterns)
 
     ###########################
     # DAY 13 - Second Part
     ###########################
 
     def _solve_second_part(self) -> int:
-        return None
+        return self.__patterns_sum(
+            self.__repaired_pattern(pattern) for pattern in self.patterns
+        )
+
+    def __repaired_pattern(self, pattern: "Pattern") -> "Pattern":
+        # We're going to try switching one pattern symbol at a time, and compute
+        # new reflections. If we find a new reflection pattern, we stop here and
+        # return the corresponding pattern
+        for i in range(pattern.nb_rows):
+            for j in range(pattern.nb_columns):
+                # Create new set of cells, and create a new pattern with it
+                new_cells = deepcopy(pattern.cells)
+                new_cells[i][j].type = (
+                    GroundType.ROCK
+                    if new_cells[i][j].type == GroundType.ASH
+                    else GroundType.ASH
+                )
+
+                new_pattern = Pattern(cells=new_cells)
+
+                # If the new pattern doesn't have any reflection, nothing to do
+                if new_pattern.reflections == Reflection({0}, {0}):
+                    continue
+
+                # If new pattern reflections are the same than current one,
+                # it's not the one we're searching for
+                if new_pattern.reflections == pattern.reflections:
+                    continue
+
+                # Remove simular reflections from new pattern. If it means
+                # not having any reflection, we put 0 a special "null" value.
+                new_pattern.reflections.vertical -= pattern.reflections.vertical
+                if not new_pattern.reflections.vertical:
+                    new_pattern.reflections.vertical = {0}
+
+                new_pattern.reflections.horizontal -= pattern.reflections.horizontal
+                if not new_pattern.reflections.horizontal:
+                    new_pattern.reflections.horizontal = {0}
+
+                return new_pattern
+
+        # We didn't found any new pattern, that's not normal, stop here
+        raise ValueError
 
 
 class GroundType(StrEnum):
@@ -60,6 +102,12 @@ class GroundCell:
 
     def __repr__(self) -> str:
         return self.type
+
+
+@dataclass
+class Reflection:
+    horizontal: set[int]
+    vertical: set[int]
 
 
 @dataclass
@@ -77,25 +125,41 @@ class Pattern:
         )
 
     @cached_property
+    def nb_rows(self):
+        return len(self.cells)
+
+    @cached_property
     def rows(self) -> tuple[int]:
         """Compute row values (one row equals an integer value)"""
         return tuple(self.__cells_value(cells_row) for cells_row in self.cells)
 
     @cached_property
-    def nb_rows_above_reflection(self) -> int:
-        return self.__process_reflection(self.rows)
+    def nb_columns(self):
+        return len(self.cells[0])
 
     @cached_property
     def columns(self) -> tuple[int]:
-        nb_columns = len(self.cells[0])
         cells_cols = [
-            [cells_row[i] for cells_row in self.cells] for i in range(nb_columns)
+            [cells_row[i] for cells_row in self.cells] for i in range(self.nb_columns)
         ]
         return tuple(self.__cells_value(cells_col) for cells_col in cells_cols)
 
     @cached_property
-    def nb_columns_before_reflection(self) -> int:
-        return self.__process_reflection(self.columns)
+    def reflections(self) -> Reflection:
+        """Tuple with horizontal reflections (rows) and vertical reflections (col)"""
+        return Reflection(
+            horizontal=self.__process_reflections(self.rows, self.nb_rows),
+            vertical=self.__process_reflections(self.columns, self.nb_columns),
+        )
+
+    @cached_property
+    def reflections_sum(self) -> int:
+        """We assume the reflections only have one element each
+        when we're doing the sum calculation.
+        """
+        return next(iter(self.reflections.vertical)) + (
+            100 * next(iter(self.reflections.horizontal))
+        )
 
     @staticmethod
     def __cells_value(cells: tuple[GroundCell]) -> int:
@@ -108,10 +172,10 @@ class Pattern:
         return int(binary_number, 2)
 
     @staticmethod
-    def __process_reflection(cells_lists: tuple[int]) -> int:
+    def __process_reflections(cells_lists: tuple[int], nb_cells: int) -> set[int]:
         # Calculate half number of cells for reflection calculation
-        nb_cells = len(cells_lists)
         half_nb_cells = round(nb_cells / 2)
+        found_cells: set[int] = set()
 
         for cells_number, cells in enumerate(cells_lists):
             # No check on first cell
@@ -139,11 +203,12 @@ class Pattern:
                     is_valid_reflection = False
                     break
 
-            # If we calculated the reflection and found out is was
-            # OK, return the current cells number as number of cells
-            # before the reflection
+            # If we calculated the reflection and found out it was
+            # OK, add the current cells number as number of cells
+            # before one reflection
             if is_valid_reflection:
-                return cells_number
+                found_cells.add(cells_number)
 
-        # If we don't have any reflection, return 0
-        return 0
+        # Return found reflection cells if any, else it means we have
+        # not reflection so we return a set with only 0 as value
+        return found_cells or {0}
