@@ -16,7 +16,7 @@ class PuzzleSolver(AbstractPuzzleSolver):
         return list(self.__compute_patterns())
 
     def __compute_patterns(self) -> Iterable["Pattern"]:
-        cells: tuple[tuple["GroundCell"]] = []
+        cells: list[tuple["GroundCell"]] = []
 
         for cells_row in self.lines:
             # If we have an empty line, end of pattern
@@ -25,7 +25,7 @@ class PuzzleSolver(AbstractPuzzleSolver):
                 cells = []
             # Else, add the current line
             else:
-                cells.append([GroundCell(type=elt) for elt in cells_row])
+                cells.append(tuple(GroundCell(type=elt) for elt in cells_row))
 
         # If we have some lines remaining (last line)
         if cells:
@@ -125,7 +125,7 @@ class Pattern:
         )
 
     @cached_property
-    def nb_rows(self):
+    def nb_rows(self) -> int:
         return len(self.cells)
 
     @cached_property
@@ -134,7 +134,7 @@ class Pattern:
         return tuple(self.__cells_value(cells_row) for cells_row in self.cells)
 
     @cached_property
-    def nb_columns(self):
+    def nb_columns(self) -> int:
         return len(self.cells[0])
 
     @cached_property
