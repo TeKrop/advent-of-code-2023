@@ -1,0 +1,24 @@
+[project]
+name = "advent_of_code_2023"
+version = "1.0.0"
+description = "Advent of Code 2023 solutions in Python"
+license = {file = "LICENSE"}
+authors = [
+  {name = "Valentin PORCHET", email = "valentin.porchet@proton.me"}
+]
+readme = "README.md"
+requires-python = ">=3.13"
+dependencies = [
+    "typer==0.13.*",
+    "pyinstrument==5.0.*"
+]
+
+[tool.uv]
+compile-bytecode = true
+dev-dependencies = [
+    "ruff==0.7.*"
+]
+
+[tool.ruff]
+# Assume Python 3.13
+target-version = "py313"
