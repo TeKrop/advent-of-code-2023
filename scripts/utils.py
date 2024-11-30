@@ -75,17 +75,17 @@ def create_empty_file(file_path: Path) -> None:
 
 def get_input(day: int) -> str | None:
     if not (session_id := os.getenv("AOC_SESSION_ID")):
-        print(f"[rouge]No session ID found, input can't be retrieved from AoC[/rouge]")
+        print("[rouge]No session ID found, input can't be retrieved from AoC[/rouge]")
         return
 
     input_url = f"{os.getenv('AOC_BASE_URL')}/day/{day}/input"
-    print(f"Retrieving input data from AoC...")
+    print("Retrieving input data from AoC...")
     response = httpx.get(input_url, cookies={"session": session_id})
     if response.status_code != httpx.codes.OK:
         print(f"[red]Error from AoC when retrieving input : {response}[/red]")
         return
 
-    print(f"[green]Input data retrieved from AoC ![/green]")
+    print("[green]Input data retrieved from AoC ![/green]")
     return response.text
 
 
@@ -97,7 +97,7 @@ class AnswerResult(Enum):
 
 def submit_answer(day: int, task: int, answer: int) -> AnswerResult | None:
     if not (session_id := os.getenv("AOC_SESSION_ID")):
-        print(f"[rouge]No session ID found, input can't be retrieved from AoC[/rouge]")
+        print("[rouge]No session ID found, input can't be retrieved from AoC[/rouge]")
         return
 
     print(f"Submitting answer for task {task} to AoC...")
@@ -111,7 +111,7 @@ def submit_answer(day: int, task: int, answer: int) -> AnswerResult | None:
         print(f"[red]Error from AoC when submitting solution : {response}[/red]")
         return
 
-    print(f"[green]Answer submitted to AoC ![/green]")
+    print("[green]Answer submitted to AoC ![/green]")
 
     if "That's the right answer" in response.text:
         return AnswerResult.RIGHT_ANSWER

@@ -88,7 +88,7 @@ def run(
 
     # Make sure we're not sending example data
     if is_example is True:
-        print(f"[red]You can't send an answer for example data[/red]")
+        print("[red]You can't send an answer for example data[/red]")
         raise typer.Exit(1)
 
     # Send the solution for the tasks having an answer
